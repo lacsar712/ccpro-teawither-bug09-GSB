@@ -117,5 +117,5 @@ class WitherBatch(models.Model):
                 raise ValidationError({"actualMoisture": "实测含水须在 (0, 100]"})
 
     def save(self, *args, **kwargs):
-        # BUG: 模型 save 不 full_clean，依赖视图顺序
+        self.full_clean()
         return super().save(*args, **kwargs)

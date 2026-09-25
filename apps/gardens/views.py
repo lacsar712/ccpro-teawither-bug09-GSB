@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
@@ -177,16 +178,15 @@ class BatchCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("batch_list")
 
     def form_valid(self, form):
-        # BUG: 先落库再校验；异常吞掉仍当成功
-        self.object = form.save(commit=False)
-        self.object.save()
+        # 模型 save() 内 full_clean：校验不过会抛 ValidationError，
+        # 此时尚未提交，不会留下残行。
         try:
-            self.object.full_clean()
-        except Exception:
-            messages.error(self.request, "校验失败（残行可能已在列表）")
-            return redirect("batch_list")
+            response = super().form_valid(form)
+        except ValidationError as e:
+            form.add_error(None, e)
+            return self.form_invalid(form)
         messages.success(self.request, "萎凋批次已创建")
-        return redirect(self.success_url)
+        return response
 
 
 class BatchUpdateView(LoginRequiredMixin, UpdateView):
@@ -196,15 +196,14 @@ class BatchUpdateView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy("batch_list")
 
     def form_valid(self, form):
-        self.object = form.save(commit=False)
-        self.object.save()
+        # 先校验后落库：full_clean 不过则停留表单，原值保持不变。
         try:
-            self.object.full_clean()
-        except Exception:
-            messages.error(self.request, "校验失败")
-            return redirect("batch_list")
+            response = super().form_valid(form)
+        except ValidationError as e:
+            form.add_error(None, e)
+            return self.form_invalid(form)
         messages.success(self.request, "萎凋批次已更新")
-        return redirect(self.success_url)
+        return response
 
 
 class BatchDeleteView(LoginRequiredMixin, DeleteView):
