@@ -177,16 +177,10 @@ class BatchCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("batch_list")
 
     def form_valid(self, form):
-        # BUG: 先落库再校验；异常吞掉仍当成功
-        self.object = form.save(commit=False)
-        self.object.save()
-        try:
-            self.object.full_clean()
-        except Exception:
-            messages.error(self.request, "校验失败（残行可能已在列表）")
-            return redirect("batch_list")
+        # 先校验后入库：ModelForm.is_valid() 已跑过模型 full_clean，
+        # 非法数据走 form_invalid 重渲染表单，不会落库。
         messages.success(self.request, "萎凋批次已创建")
-        return redirect(self.success_url)
+        return super().form_valid(form)
 
 
 class BatchUpdateView(LoginRequiredMixin, UpdateView):
@@ -196,15 +190,9 @@ class BatchUpdateView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy("batch_list")
 
     def form_valid(self, form):
-        self.object = form.save(commit=False)
-        self.object.save()
-        try:
-            self.object.full_clean()
-        except Exception:
-            messages.error(self.request, "校验失败")
-            return redirect("batch_list")
+        # 同创建路径：校验不通过则不写库，库中保留原值。
         messages.success(self.request, "萎凋批次已更新")
-        return redirect(self.success_url)
+        return super().form_valid(form)
 
 
 class BatchDeleteView(LoginRequiredMixin, DeleteView):
